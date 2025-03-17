@@ -1,4 +1,5 @@
 import Head from "next/head";
+import ChatBot from "@/componentes/ChatBot";
 
 export default function Home() {
   return (
@@ -27,6 +28,10 @@ export default function Home() {
           >
             Fale Conosco
           </a>
+        </section>
+
+        <section id="chat">
+          <ChatBot />
         </section>
 
         <section id="services" className="py-20 text-center">
