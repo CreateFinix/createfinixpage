@@ -1,5 +1,7 @@
+/* Importação do Tailwind CSS */
 @import "tailwindcss";
 
+/* Estilos Globais */
 body {
   font-family: 'Poppins', Arial, sans-serif;
   margin: 0;
@@ -9,6 +11,7 @@ body {
   scroll-behavior: smooth;
 }
 
+/* Header */
 header {
   display: flex;
   justify-content: space-between;
@@ -41,6 +44,7 @@ header .logo {
   color: #a8dadc; /* Azul claro */
 }
 
+/* Hero Section */
 #hero {
   text-align: center;
   padding: 60px 20px;
@@ -50,13 +54,14 @@ header .logo {
 }
 
 #hero h1 {
-  font-size: 2rem; /* Ajuste do tamanho da fonte */
+  font-size: 2rem;
 }
 
 #hero p {
   font-size: 1rem;
 }
 
+/* Botões de Call to Action */
 .cta-button {
   display: inline-block;
   background: #457b9d; /* Azul médio */
@@ -73,6 +78,7 @@ header .logo {
   background: #1d3557;
 }
 
+/* Services Section */
 #services {
   padding: 40px 20px;
   background: #a8dadc; /* Fundo azul claro */
@@ -112,6 +118,7 @@ header .logo {
   color: #457b9d;
 }
 
+/* Portfolio Section */
 #portifolios {
   padding: 40px 20px;
   background: #a8dadc; /* Fundo azul claro */
@@ -151,7 +158,7 @@ header .logo {
   color: #457b9d;
 }
 
-
+/* Footer */
 footer {
   background-color: #1d3557; /* Azul escuro */
   color: white;
@@ -305,14 +312,6 @@ hr {
   #chat-history div {
       margin: 8px 0; /* Menos espaçamento entre as mensagens */
   }
-}
-
-
-/* Responsividade */
-@media (max-width: 768px) {
-  body {
-      font-size: 14px;
-  }
 
   .services-container {
       flex-direction: column;
@@ -323,7 +322,7 @@ hr {
       flex: 1 1 100%;
       max-width: 100%;
   }
-  
+
   .portifolio-container {
       flex-direction: column;
       gap: 15px;
@@ -365,13 +364,8 @@ hr {
       gap: 15px;
       padding: 10px 0;
   }
-  
+
   footer p {
       font-size: 12px;
-  }
-
-  #chatbox {
-      max-width: 100%;
-      padding: 10px;
   }
 }

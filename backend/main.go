@@ -1,81 +1,71 @@
 package main
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
-	"math/rand"
 	"net/http"
-	"strings"
-	"time"
-
+	//"time"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 )
 
-// Estrutura para receber mensagens do usuário
 type ChatRequest struct {
 	Message string `json:"message"`
 }
 
-// Estrutura para resposta do chatbot
 type ChatResponse struct {
-	Response    string   `json:"response"`
-	Suggestions []string `json:"suggestions,omitempty"`
-	Action      string   `json:"action,omitempty"`
-	WhatsAppLink string  `json:"whatsappLink,omitempty"`
+	Response string `json:"response"`
 }
 
-// Simula respostas do chatbot
-func processChatMessage(message string) string {
-	responses := map[string][]string{
-		"default": {
-			"Desculpe, não entendi sua mensagem. Poderia ser mais específico?",
-			"Não consegui compreender. Você pode tentar reformular sua pergunta?",
-		},
-		"greeting": {
-			"Olá! 👋 Como posso ajudar você hoje?",
-			"Oi! Tudo bem? Estou aqui para te ajudar! 😊",
-		},
-		"services": {
-			"Oferecemos Desenvolvimento de Sistemas, UX/UI Design e Consultoria Tecnológica. Qual deles interessa?",
-		},
-		"pricing": {
-			"Para informações sobre preços, entre em contato conosco para um orçamento personalizado!",
-		},
-		"forwardToWhatsApp": {
-			"Entendi! Vou preparar sua solicitação e redirecioná-lo para o WhatsApp.",
-		},
+func processChatMessage(message string) (ChatResponse, error) {
+	// Chama o servidor Python para obter a resposta da IA
+	response, err := getAIResponseFromPython(message)
+	if err != nil {
+		return ChatResponse{}, err
 	}
 
-	normalizedMessage := strings.ToLower(message)
+	return ChatResponse{Response: response}, nil
+}
 
-	switch {
-	case strings.Contains(normalizedMessage, "oi") || strings.Contains(normalizedMessage, "olá"):
-		return getRandomResponse(responses["greeting"])
-	case strings.Contains(normalizedMessage, "serviços"):
-		return getRandomResponse(responses["services"])
-	case strings.Contains(normalizedMessage, "preço") || strings.Contains(normalizedMessage, "valor"):
-		return getRandomResponse(responses["pricing"])
-	case strings.Contains(normalizedMessage, "clínica") || strings.Contains(normalizedMessage, "demanda"):
-		return getRandomResponse(responses["forwardToWhatsApp"])
-	default:
-		return getRandomResponse(responses["default"])
+// Função que chama o servidor Python (Flask) para processar a mensagem
+func getAIResponseFromPython(message string) (string, error) {
+	// Endpoint do servidor Python que processa a mensagem
+	url := "http://localhost:5000/get_response"
+
+	// Cria o corpo da requisição
+	reqBody := fmt.Sprintf(`{"message": "%s"}`, message)
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer([]byte(reqBody)))
+	if err != nil {
+		return "", err
 	}
-}
 
-// Retorna uma resposta aleatória
-func getRandomResponse(options []string) string {
-	rand.Seed(time.Now().UnixNano())
-	return options[rand.Intn(len(options))]
-}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
 
-// Gera link do WhatsApp
-func generateWhatsAppLink(userMessage string) string {
-	phoneNumber := "5521966311677"
-	message := fmt.Sprintf("Olá! Recebemos a seguinte demanda: \"%s\". Por favor, entre em contato.", userMessage)
-	return fmt.Sprintf("https://wa.me/%s?text=%s", phoneNumber, message)
+	var response map[string]string
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return "", err
+	}
+
+	// Supondo que a resposta da IA seja algo como {"response": "Texto da IA"}
+	return response["response"], nil
 }
 
 func main() {
 	r := gin.Default()
+	r.Use(cors.Default())
+
+	r.GET("/welcome", func(c *gin.Context) {
+		// Exibe a resposta de boas-vindas para o usuário
+		c.JSON(http.StatusOK, ChatResponse{Response: "Olá! Como posso ajudar?"})
+	})
+
 	r.POST("/chat", func(c *gin.Context) {
 		var chatReq ChatRequest
 		if err := c.ShouldBindJSON(&chatReq); err != nil {
@@ -83,20 +73,20 @@ func main() {
 			return
 		}
 
-		response := processChatMessage(chatReq.Message)
-		chatResp := ChatResponse{Response: response, Suggestions: []string{"Serviços", "Preços", "Falar com Especialista"}}
-
-		// Verifica se precisa redirecionar para WhatsApp
-		if strings.Contains(response, "redirecioná-lo para o WhatsApp") {
-			chatResp.Action = "forward_to_whatsapp"
-			chatResp.WhatsAppLink = generateWhatsAppLink(chatReq.Message)
+		// Processa a mensagem com o backend Go (que chama o Python)
+		chatResp, err := processChatMessage(chatReq.Message)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"response": "Erro ao processar a mensagem."})
+			return
 		}
 
-		time.Sleep(1 * time.Second) // Simula um delay antes de responder
+		// Retorna a resposta ao usuário
 		c.JSON(http.StatusOK, chatResp)
 	})
 
 	port := "15000"
-	fmt.Println("Servidor rodando na porta " + port + "...")
-	r.Run(":" + port)
+	fmt.Printf("Servidor rodando na porta %s...\n", port)
+	if err := r.Run(":" + port); err != nil {
+		fmt.Println("Erro ao iniciar o servidor:", err)
+	}
 }

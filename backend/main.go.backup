@@ -1,0 +1,191 @@
+	package main
+
+	import (
+		"fmt"
+		"math/rand"
+		"net/http"
+		"net/url"
+		"strings"
+		"time"
+
+		"github.com/gin-contrib/cors"
+		"github.com/gin-gonic/gin"
+	)
+
+	// Estruturas para requisição e resposta
+	type ChatRequest struct {
+		Message string `json:"message"`
+	}
+
+	type ChatResponse struct {
+		Response     string   `json:"response"`
+		Suggestions  []string `json:"suggestions,omitempty"`
+		Action       string   `json:"action,omitempty"`
+		WhatsAppLink string   `json:"whatsappLink,omitempty"`
+		Link 	     string	  `json:"linkResponse"`
+	}
+
+	// Definição de respostas do chatbot
+	var responses = map[string][]string{
+		"default": {
+			"Desculpe, não entendi sua mensagem. Poderia ser mais específico?",
+			"Não consegui compreender. Você pode tentar reformular sua pergunta?",
+			"Hum... não consegui entender. Pode tentar novamente com outras palavras?",
+			"Essa não ficou clara para mim, poderia explicar melhor?",
+		},
+		"greeting": {
+			"Olá! 👋 Como posso ajudar você hoje?  Selecione o que precisa: 1️⃣ Serviços 2️⃣ Preços 3️⃣ Falar com Especialista",
+			"Oi! 😊 Como posso te ajudar hoje? Estou à disposição!  Escolha uma das opções abaixo: 1️⃣ Serviços 2️⃣ Preços 3️⃣ Falar com Especialista",
+			"Olá! Que bom ver você por aqui! 👋 Como posso ser útil? Escolha uma das opções abaixo: 1️⃣ Serviços 2️⃣ Preços 3️⃣ Falar com Especialista",
+		},
+		"services": {
+			"Oferecemos: - Desenvolvimento de Sistemas 💻 - UX/UI Design 🎨 - Consultoria Tecnológica 📊  O que deseja saber mais?",
+			"Temos diversas soluções para ajudar sua empresa a crescer! Oferecemos: - Desenvolvimento de Sistemas 💻 - UX/UI Design 🎨 - Consultoria Tecnológica 📊  Sobre qual serviço você gostaria de saber mais?",
+			"Aqui estão os serviços que oferecemos: - Desenvolvimento de Sistemas 💻 - UX/UI Design 🎨 - Consultoria Tecnológica 📊  Me diga, sobre qual você quer mais detalhes?",
+		},
+		"pricing": {
+			"Para informações sobre preços, entre em contato conosco para um orçamento personalizado!",
+			"Os preços variam conforme o serviço escolhido. Podemos discutir um orçamento personalizado para suas necessidades. Fique à vontade para nos chamar!",
+			"Podemos conversar sobre preços e encontrar a melhor solução para o que você precisa. Que tal solicitar um orçamento personalizado?",
+		},
+		"forwardToWhatsApp": {
+			"Claro, clique no botão verde",
+		},
+	}
+
+	// Sugestões padrão para o chatbot
+	var defaultSuggestions = []string{"1️⃣ Serviços", "2️⃣ Preços", "3️⃣ Falar com Especialista"}
+
+	// Processa a mensagem do usuário e retorna uma resposta
+	func processChatMessage(message string) ChatResponse {
+		normalizedMessage := normalizeMessage(message)
+
+		// Verifica por comandos diretos
+		if response, _ := handleDirectCommand(normalizedMessage); response != nil {
+			return *response
+		}
+
+		// Verifica por palavras-chave
+		if response, _ := handleKeywords(normalizedMessage, message); response != nil {
+			return *response
+		}
+
+		// Caso padrão
+		return ChatResponse{
+			Response:    getRandomResponse(responses["default"]),
+			Suggestions: defaultSuggestions,
+		}
+	}
+
+	// Normaliza a mensagem
+	func normalizeMessage(message string) string {
+		return strings.ToLower(strings.TrimSpace(message))
+	}
+
+	// Lida com comandos diretos como "1", "2", "3"
+	func handleDirectCommand(normalizedMessage string) (*ChatResponse, string) {
+		switch normalizedMessage {
+		case "1":
+			return &ChatResponse{Response: getRandomResponse(responses["services"])}, ""
+		case "2":
+			return &ChatResponse{Response: getRandomResponse(responses["pricing"])}, ""
+		case "3":
+			// Passando o número de telefone correto e a mensagem estática
+			link := generateWhatsAppLink("5521966311677", "Quero falar com um especialista")
+			//link := "https://wa.me/5521966311677?text=Ol%C3%A1,%20estou%20interessado%20nos%20seus%20servi%C3%A7os."
+			return &ChatResponse{
+				Response:     getRandomResponse(responses["forwardToWhatsApp"]),
+				Action:       "forward_to_whatsapp",
+				WhatsAppLink: link,
+			}, "forward_to_whatsapp"
+			
+		}
+		return nil, ""
+	}
+
+	// Lida com palavras-chave e frases comuns
+	func handleKeywords(normalizedMessage, originalMessage string) (*ChatResponse, string) {
+		switch {
+		case strings.Contains(normalizedMessage, "oi") || strings.Contains(normalizedMessage, "olá"):
+			return &ChatResponse{Response: getRandomResponse(responses["greeting"])}, ""
+		case strings.Contains(normalizedMessage, "serviços"):
+			return &ChatResponse{Response: getRandomResponse(responses["services"])}, ""
+		case strings.Contains(normalizedMessage, "preço") || strings.Contains(normalizedMessage, "valor"):
+			return &ChatResponse{Response: getRandomResponse(responses["pricing"])}, ""
+		case strings.Contains(normalizedMessage, "falar com especialista"):
+			// Passando o número de telefone correto e a mensagem original
+			link := generateWhatsAppLink("5521966311677", originalMessage)
+			//link := "https://wa.me/5521966311677?text=Ol%C3%A1,%20estou%20interessado%20nos%20seus%20servi%C3%A7os."
+			return &ChatResponse{
+				Response:     getRandomResponse(responses["forwardToWhatsApp"]),
+				Action:       "forward_to_whatsapp",
+				WhatsAppLink: link,
+			}, "forward_to_whatsapp"
+		}
+		return nil, ""
+	}
+
+	// Retorna uma resposta aleatória da lista
+	func getRandomResponse(options []string) string {
+		return options[rand.Intn(len(options))]
+	}
+
+	// Gera um link do WhatsApp formatado corretamente e aceita número de telefone e mensagem personalizada como parâmetros
+	func generateWhatsAppLink(phoneNumber, userMessage string) string {
+		// Verifica se a mensagem do usuário está vazia
+		if userMessage == "" {
+			userMessage = "Olá, gostaria de mais informações!"
+		}
+
+		// Cria a mensagem com a demanda do usuário
+		//message := fmt.Sprintf("Olá! Recebemos a seguinte demanda: \"%s\". Por favor, entre em contato.", userMessage)
+
+		// Codifica a mensagem para garantir que os caracteres especiais sejam tratados
+		encodedMessage := url.QueryEscape(userMessage) // Codifica a mensagem corretamente para URL
+
+		// Retorna o link completo formatado para o WhatsApp
+		return fmt.Sprintf("https://wa.me/%s?text=%s", phoneNumber, encodedMessage)
+		
+
+	}
+
+	func main() {
+		rand.Seed(time.Now().UnixNano()) // Inicializa a seed globalmente
+
+		r := gin.Default()
+		r.Use(cors.Default())
+		r.Use(gin.Logger())   // Adiciona logs de requisição
+		r.Use(gin.Recovery()) // Adiciona middleware para recuperação de panics
+
+		// Endpoint para a mensagem de boas-vindas
+		r.GET("/welcome", func(c *gin.Context) {
+			welcomeMessage := ChatResponse{
+				Response:    getRandomResponse(responses["greeting"]),
+				Suggestions: defaultSuggestions,
+			}
+			c.JSON(http.StatusOK, welcomeMessage)
+		})
+
+		// Endpoint para processar mensagens do chat
+		r.POST("/chat", func(c *gin.Context) {
+			var chatReq ChatRequest
+			if err := c.ShouldBindJSON(&chatReq); err != nil {
+				c.JSON(http.StatusBadRequest, gin.H{"response": "Por favor, envie uma mensagem válida."})
+				return
+			}
+
+			chatResp := processChatMessage(chatReq.Message)
+
+			// Simula um delay para dar uma sensação de conversa mais natural
+			time.Sleep(1 * time.Second)
+
+			// Retorna a resposta ao usuário
+			c.JSON(http.StatusOK, chatResp)
+		})
+
+		port := "15000"
+		fmt.Printf("Servidor rodando na porta %s...\n", port)
+		if err := r.Run(":" + port); err != nil {
+			fmt.Println("Erro ao iniciar o servidor:", err)
+		}
+	}
